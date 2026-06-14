@@ -1,0 +1,26 @@
+# Mirrors the portal metadata (submission_spec.md Section 10). Fill before submitting.
+team_name: ""
+primary_contact_name: ""
+primary_contact_email: ""
+primary_contact_phone: ""
+github_repository_url: "https://github.com/USERNAME/REPO"
+sandbox_demo_link: ""          # HuggingFace Spaces / Streamlit / Replit / Colab / Docker / Binder
+ai_tools_declared:             # Claude / ChatGPT / Copilot / Cursor / Gemini / Other / None
+  - Claude
+compute_environment_summary: "" # e.g. "Windows 11, 16GB RAM, Python 3.11"
+team_members:
+  - name: "Parthvi"
+    email: ""
+  - name: "Jash"
+    email: ""
+  - name: "Navika"
+    email: "navikakapoorgrk@gmail.com"
+  - name: "Kaarthik"
+    email: ""
+methodology_summary: >
+  Hybrid ranker over precomputed candidate features. JD is parsed into required/
+  preferred skills and an experience band. Each candidate is scored on skill match
+  (gated by title fit so keyword-stuffed non-engineers don't rank), experience
+  relevance, and a behavioral availability modifier (recruiter response rate,
+  recency, open-to-work). Top-K shortlist is re-ranked deterministically and given
+  fact-grounded reasoning. Runs offline, CPU-only, well under the 5-min budget.

@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.env
+# big dataset — don't commit
+data/candidates.jsonl
+data/candidates.jsonl.gz
+outputs/*.csv
+.DS_Store
