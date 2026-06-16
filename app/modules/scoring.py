@@ -80,6 +80,8 @@ def _get_st_model():
         return _st_model
     try:
         from sentence_transformers import SentenceTransformer
+        # TODO(Parthvi): Coordinate to pre-download weights so we can use local_files_only=True
+        # This prevents the model from attempting network fetches during offline Stage-3.
         _st_model = SentenceTransformer("all-MiniLM-L6-v2")
         logger.info("Loaded sentence-transformers model all-MiniLM-L6-v2")
     except Exception as exc:                     # noqa: BLE001
@@ -197,14 +199,18 @@ def _experience_relevance(jd: ParsedJD, cand: CandidateFeatures) -> float:
     return max(0.30, 1.0 - 0.08 * excess)
 
 
-def _title_fit(cand: CandidateFeatures) -> float:
-    """Gate score: engineering titles → 1.0; clearly non-eng titles → low."""
+def _title_fit(jd: ParsedJD, cand: CandidateFeatures) -> Tuple[float, float]:
+    """Gate score and role overlap nudge."""
     t = cand.current_title.lower()
-    if any(h in t for h in _FIT_TITLE_HINTS):
-        return 1.0
-    if any(h in t for h in _WEAK_TITLE_HINTS):
-        return 0.15
-    return 0.50  # ambiguous title
+    base = 1.0 if any(h in t for h in _FIT_TITLE_HINTS) else \
+           0.15 if any(h in t for h in _WEAK_TITLE_HINTS) else 0.50
+
+    role = (jd.role_type or "").lower()
+    overlap = (set(role.split()) & set(t.split())) - {
+        "senior", "junior", "lead", "staff", "principal", "founding", "the", "a"}
+    nudge = 0.005 if overlap else 0.0
+
+    return base, nudge
 
 
 def _growth_index(cand: CandidateFeatures) -> float:
@@ -229,7 +235,7 @@ def _growth_index(cand: CandidateFeatures) -> float:
                 pass
 
     # Experience breadth (more positions → more growth, capped at 5)
-    experience = raw.get("experience", [])
+    experience = raw.get("career_history", [])
     if isinstance(experience, list) and experience:
         signals.append(min(1.0, len(experience) / 5.0))
 
@@ -323,7 +329,7 @@ def score_candidate(jd: ParsedJD, cand: CandidateFeatures) -> ScoredCandidate:
     exp   = _experience_relevance(jd, cand)
     growth = _growth_index(cand)
     behav = _behavioral_score(cand)
-    title = _title_fit(cand)
+    title_base, nudge = _title_fit(jd, cand)
 
     # Weighted combination of the four sub-scores
     weighted = (W_SKILL * skill
@@ -333,7 +339,7 @@ def score_candidate(jd: ParsedJD, cand: CandidateFeatures) -> ScoredCandidate:
 
     # Title-fit gate: scales the weighted score down for non-eng titles
     # so keyword-stuffed profiles from non-engineering roles don't rank high.
-    weighted = weighted * (0.50 + 0.50 * title)
+    weighted = weighted * (0.50 + 0.50 * title_base)
 
     # ── Semantic similarity (only when candidate embedding is available) ──
     cand_emb = cand.embedding
@@ -348,6 +354,7 @@ def score_candidate(jd: ParsedJD, cand: CandidateFeatures) -> ScoredCandidate:
     else:
         final = weighted
 
+    final = final + nudge
     final = max(0.0, min(1.0, final))
 
     return ScoredCandidate(

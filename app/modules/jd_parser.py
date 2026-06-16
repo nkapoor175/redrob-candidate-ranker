@@ -81,14 +81,14 @@ _SKILLS_TAXONOMY: List[str] = [
 # ──────────────────────────────────────────────────────────────────────
 _REQUIRED_SECTION_RE = [
     re.compile(p, re.IGNORECASE) for p in [
-        r"(?:things?\s+you\s+)?(?:absolutely\s+)?need",
-        r"requirements?\b",
-        r"essential\s+(?:skills?|qualifications?|experience)",
-        r"must[\s-]have",
-        r"what\s+(?:we|you)\s+need",
-        r"core\s+(?:skills?|competenc)",
-        r"minimum\s+(?:qualifications?|requirements?)",
-        r"key\s+(?:skills?|requirements?|qualifications?)",
+        r"^(?:things?\s+you\s+)?absolutely\s+need\b",
+        r"^requirements?\b",
+        r"^essential\s+(?:skills?|qualifications?|experience)",
+        r"^must[\s-]have\b",
+        r"^what\s+(?:we|you)\s+need\b",
+        r"^core\s+(?:skills?|competenc)",
+        r"^minimum\s+(?:qualifications?|requirements?)",
+        r"^key\s+(?:skills?|requirements?|qualifications?)",
     ]
 ]
 

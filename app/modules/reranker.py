@@ -142,27 +142,7 @@ def rerank(
     --------
     1. Stable sort by ``score`` descending.
     2. Ties broken by ``candidate_id`` ascending (deterministic per spec §3).
-    3. Light penalty for candidates whose title is a clear mismatch for the
-       role_type in the JD (an extra guard against keyword-stuffed profiles
-       that slipped through scoring).
 
     The pipeline calls this on the top ~3×K candidates before slicing to K.
     """
-    role_lower = jd.role_type.lower() if jd.role_type else ""
-
-    def _sort_key(pair: Tuple[CandidateFeatures, ScoredCandidate]):
-        feats, sc = pair
-        score = sc.score
-
-        # Micro-boost for candidates whose title resonates with the JD role
-        title_lower = feats.current_title.lower()
-        role_words = set(role_lower.split())
-        title_words = set(title_lower.split())
-        overlap = role_words & title_words - {"senior", "junior", "lead", "staff",
-                                               "principal", "founding", "the", "a"}
-        if overlap:
-            score += 0.005  # tiny nudge, not enough to override real signal
-
-        return (-score, feats.candidate_id)
-
-    return sorted(shortlist, key=_sort_key)
+    return sorted(shortlist, key=lambda p: (-p[1].score, p[0].candidate_id))
