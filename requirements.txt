@@ -3,5 +3,7 @@ uvicorn[standard]==0.30.6
 pydantic==2.9.2
 python-multipart==0.0.9
 pyyaml==6.0.2
-# Parthvi/Jash add ML deps here as needed, e.g.:
-# sentence-transformers, faiss-cpu, scikit-learn, xgboost, numpy
+# ML deps (Jash — scoring & JD parsing)
+numpy>=1.24
+rapidfuzz>=3.0
+sentence-transformers>=2.2.0
