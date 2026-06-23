@@ -28,14 +28,32 @@ from app.modules import jd_parser, candidate_parser, scoring, reranker
 
 # ---------- data loading ----------
 def iter_candidates(path: str | Path) -> Iterator[dict]:
-    """Stream candidate records from .jsonl or .jsonl.gz one at a time."""
+    """Stream candidate records from the candidate dataset.
+
+    Accepts either:
+      * JSONL / JSONL.gz — one JSON object per line (the 100K hackathon dataset)
+      * a JSON array — e.g. a file uploaded from the recruiter dashboard
+    Detects the format by peeking at the first non-whitespace character.
+    """
     path = Path(path)
     opener = gzip.open if path.suffix == ".gz" else open
     with opener(path, "rt", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                yield json.loads(line)
+        pos = f.tell()
+        head = f.read(64).lstrip()
+        f.seek(pos)
+        if head.startswith("["):
+            # JSON array (loads fully — used for small dashboard uploads)
+            records = json.load(f)
+            if isinstance(records, dict):
+                records = records.get("candidates", [])
+            for rec in records:
+                yield rec
+        else:
+            # JSONL: one object per line (streamed for the large dataset)
+            for line in f:
+                line = line.strip()
+                if line:
+                    yield json.loads(line)
 
 
 # ---------- the pipeline ----------
