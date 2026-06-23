@@ -170,18 +170,18 @@ export default function Rankings({ candidatesList }) {
                       </span>
                     </td>
 
-                    {/* Scores breakdowns */}
+                    {/* Scores breakdowns — show '—' when not returned by API */}
                     <td className="px-6 py-4.5 text-center font-medium text-slate-400">
-                      {candidate.scores.skillMatch}%
+                      {candidate.scores?.skillMatch != null ? `${candidate.scores.skillMatch}%` : <span className="text-slate-600">—</span>}
                     </td>
                     <td className="px-6 py-4.5 text-center font-medium text-slate-400">
-                      {candidate.scores.experience}%
+                      {candidate.scores?.experience != null ? `${candidate.scores.experience}%` : <span className="text-slate-600">—</span>}
                     </td>
                     <td className="px-6 py-4.5 text-center font-medium text-slate-400">
-                      {candidate.scores.growth}%
+                      {candidate.scores?.growth != null ? `${candidate.scores.growth}%` : <span className="text-slate-600">—</span>}
                     </td>
                     <td className="px-6 py-4.5 text-center font-medium text-slate-400">
-                      {candidate.scores.behavioral}%
+                      {candidate.scores?.behavioral != null ? `${candidate.scores.behavioral}%` : <span className="text-slate-600">—</span>}
                     </td>
 
                     {/* Status */}

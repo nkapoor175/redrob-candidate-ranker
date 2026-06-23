@@ -174,23 +174,34 @@ export default function CandidateDetails({ candidatesList }) {
               Detailed Criteria Breakdown
             </h4>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {Object.entries(activeCandidate.scores).map(([key, score]) => (
-                <div key={key} className="space-y-2">
-                  <div className="flex justify-between items-baseline text-xs">
-                    <span className="font-semibold text-slate-300">{getScoreLabel(key)}</span>
-                    <span className={`font-bold ${getScoreColor(score)}`}>{score}%</span>
-                  </div>
-                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden p-[0.5px]">
-                    <div
-                      style={{ width: `${score}%` }}
-                      className={`h-full rounded-full ${getProgressBarColor(key)}`}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            {Object.values(activeCandidate.scores).every(v => v === null) ? (
+              <div className="col-span-2 flex items-center gap-2 p-3 rounded-xl bg-slate-900/40 border border-slate-800">
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Sub-scores not available — backend returns overall score only.
+                </span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {Object.entries(activeCandidate.scores)
+                  .filter(([, score]) => score !== null)
+                  .map(([key, score]) => (
+                    <div key={key} className="space-y-2">
+                      <div className="flex justify-between items-baseline text-xs">
+                        <span className="font-semibold text-slate-300">{getScoreLabel(key)}</span>
+                        <span className={`font-bold ${getScoreColor(score)}`}>{score}%</span>
+                      </div>
+                      <div className="h-2 bg-slate-800 rounded-full overflow-hidden p-[0.5px]">
+                        <div
+                          style={{ width: `${score}%` }}
+                          className={`h-full rounded-full ${getProgressBarColor(key)}`}
+                        />
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
+
 
           {/* Candidate Projects */}
           <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-6">

@@ -1,7 +1,35 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, Check, Play, Award, Zap, Percent, Users2 } from 'lucide-react';
+import { UploadCloud, Check, Play, Award, Zap, Percent, Users2, AlertTriangle, Loader2 } from 'lucide-react';
+import axios from 'axios';
 import { candidates as defaultCandidates } from '../data/mockCandidates';
+
+const API_URL = 'http://127.0.0.1:8000/rank';
+
+// Map a single result item from the API response to our UI candidate model.
+// sub-scores (skillMatch, growth, etc.) are not returned by the backend yet;
+// they are set to null so the UI can render them conditionally.
+function mapApiResult(item, idx, jobTitle) {
+  return {
+    id: item.candidate_id || String(idx + 1),
+    rank: item.rank ?? idx + 1,
+    name: item.candidate_id || `Candidate ${idx + 1}`,
+    role: jobTitle || 'Candidate',
+    experienceYears: null,
+    // score is a 0–1 float from the backend; convert to 0–100 for display
+    finalScore: Math.round((item.score ?? 0) * 100),
+    scores: {
+      skillMatch: null,
+      experience: null,
+      growth: null,
+      behavioral: null,
+    },
+    status: 'Matched',
+    skills: [],
+    projects: [],
+    reasoning: item.reasoning || '',
+  };
+}
 
 export default function Dashboard({ candidatesList, setCandidatesList, jobDescriptionText, setJobDescriptionText }) {
   const navigate = useNavigate();
@@ -15,6 +43,9 @@ export default function Dashboard({ candidatesList, setCandidatesList, jobDescri
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisStage, setAnalysisStage] = useState('');
   const [isComplete, setIsComplete] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  // Tracks whether the last completed run came from the real API
+  const [isRealAPIData, setIsRealAPIData] = useState(false);
 
   // Parse candidate CSV dataset in-browser
   const parseCSV = (text) => {
@@ -217,45 +248,96 @@ export default function Dashboard({ candidatesList, setCandidatesList, jobDescri
     setPendingCandidates(defaultCandidates);
   };
 
-  // Analysis Simulation
-  const startAnalysis = () => {
+  // Real API call — POST multipart/form-data to backend ranker
+  const startAnalysis = async () => {
     if (!jobFile || !candidateFile) return;
+
     setIsAnalyzing(true);
     setIsComplete(false);
+    setApiError(null);
     setAnalysisProgress(0);
 
-    const stages = [
-      { text: "Reading files and starting pipeline...", limit: 20 },
-      { text: "Parsing Job Description & extracting key skill keywords...", limit: 40 },
-      { text: "Parsing candidates profiles & mapping schemas...", limit: 65 },
-      { text: "Generating semantic embeddings & executing cosine matching...", limit: 85 },
-      { text: "Running LLM re-ranker and calculating final confidence scores...", limit: 100 }
-    ];
+    // If candidateFile is a mock object (from Load Demo), fall back to the
+    // simulated flow because there is no real File to POST.
+    const isRealFile = candidateFile instanceof File;
 
-    let currentLimitIndex = 0;
-    const interval = setInterval(() => {
-      setAnalysisProgress((prev) => {
-        const next = prev + 2;
-        if (next >= stages[currentLimitIndex].limit) {
-          setAnalysisStage(stages[currentLimitIndex].text);
-          if (currentLimitIndex < stages.length - 1) {
-            currentLimitIndex++;
+    if (!isRealFile) {
+      // ── Demo mode: keep the friendly fake progress bar ───────────────────
+      const stages = [
+        { text: 'Reading files and starting pipeline...', limit: 20 },
+        { text: 'Parsing Job Description & extracting key skill keywords...', limit: 40 },
+        { text: 'Parsing candidate profiles & mapping schemas...', limit: 65 },
+        { text: 'Generating semantic embeddings & cosine matching...', limit: 85 },
+        { text: 'Running LLM re-ranker and scoring...', limit: 100 },
+      ];
+      let idx = 0;
+      const interval = setInterval(() => {
+        setAnalysisProgress((prev) => {
+          const next = prev + 2;
+          if (next >= stages[idx].limit) {
+            setAnalysisStage(stages[idx].text);
+            if (idx < stages.length - 1) idx++;
           }
-        }
-        if (next >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setIsAnalyzing(false);
-            setIsComplete(true);
-            if (pendingCandidates) {
-              setCandidatesList(pendingCandidates);
-            }
-          }, 600);
-          return 100;
-        }
-        return next;
-      });
-    }, 40);
+          if (next >= 100) {
+            clearInterval(interval);
+            setTimeout(() => {
+              setIsAnalyzing(false);
+              setIsComplete(true);
+              setIsRealAPIData(false);
+              if (pendingCandidates) setCandidatesList(pendingCandidates);
+            }, 600);
+            return 100;
+          }
+          return next;
+        });
+      }, 40);
+      return;
+    }
+
+    // ── Real API mode ─────────────────────────────────────────────────────
+    // Tick a smooth indeterminate bar up to 90% while the request is in flight;
+    // we jump it to 100% once the response arrives.
+    setAnalysisStage('Connecting to ranking engine...');
+    let fakeProgress = 0;
+    const ticker = setInterval(() => {
+      fakeProgress = Math.min(fakeProgress + 1, 90);
+      setAnalysisProgress(fakeProgress);
+      if (fakeProgress === 20) setAnalysisStage('Uploading job description and candidate file...');
+      if (fakeProgress === 45) setAnalysisStage('Ranking engine processing embeddings...');
+      if (fakeProgress === 70) setAnalysisStage('LLM re-ranker scoring candidates...');
+    }, 150);
+
+    try {
+      const form = new FormData();
+      form.append('jd_text', jobDescriptionText);
+      form.append('candidates_file', candidateFile);   // real File object
+      form.append('top_k', 100);
+
+      const res = await axios.post(API_URL, form);
+      const { results = [], job_title } = res.data;
+
+      clearInterval(ticker);
+      setAnalysisProgress(100);
+      setAnalysisStage('Rankings received!');
+
+      const mapped = results.map((item, i) => mapApiResult(item, i, job_title));
+
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        setIsComplete(true);
+        setIsRealAPIData(true);
+        setCandidatesList(mapped);
+      }, 400);
+    } catch (err) {
+      clearInterval(ticker);
+      const msg =
+        err?.response?.data?.detail ||
+        err?.message ||
+        'Unknown error — is the backend running on port 8000?';
+      setApiError(msg);
+      setIsAnalyzing(false);
+      setAnalysisProgress(0);
+    }
   };
 
   // Compute dynamic stats based on current active list
@@ -412,7 +494,30 @@ export default function Dashboard({ candidatesList, setCandidatesList, jobDescri
 
       {/* Action / Loader Section */}
       <div className="flex flex-col items-center justify-center py-6 bg-slate-900/20 rounded-2xl border border-slate-800/40">
-        {!isAnalyzing && !isComplete ? (
+        {/* ── Error state ─────────────────────────────────────────── */}
+        {apiError ? (
+          <div className="w-full max-w-lg px-8 text-center space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-rose-500/10 border border-rose-500/25 rounded-xl text-left">
+              <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-rose-400">Backend Error</p>
+                <p className="text-[11px] text-rose-300/80 leading-relaxed font-mono break-all">{apiError}</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500">
+              Make sure your backend is running:&nbsp;
+              <code className="text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">uvicorn app.main:app --reload</code>
+            </p>
+            <button
+              onClick={() => { setApiError(null); setIsComplete(false); }}
+              className="text-xs font-semibold text-sky-400 hover:text-sky-300 underline"
+            >
+              Try again
+            </button>
+          </div>
+
+        ) : !isAnalyzing && !isComplete ? (
+          /* ── Idle state ──────────────────────────────────────────── */
           <div className="text-center space-y-3">
             <button
               onClick={startAnalysis}
@@ -427,40 +532,69 @@ export default function Dashboard({ candidatesList, setCandidatesList, jobDescri
               Analyze Candidates
             </button>
             <p className="text-xs text-slate-500">
-              {!jobFile || !candidateFile ? "Please upload both files to activate analysis." : "Ready to rank using embedding cos-similarity and LLM re-scoring."}
+              {!jobFile || !candidateFile
+                ? 'Please upload both files to activate analysis.'
+                : candidateFile instanceof File
+                  ? 'Will call POST /rank on your local backend.'
+                  : 'Demo mode — uses built-in mock dataset.'}
             </p>
           </div>
+
         ) : isAnalyzing ? (
+          /* ── In-flight / progress state ─────────────────────────── */
           <div className="w-full max-w-lg px-8 text-center space-y-4">
             <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-              <span>{analysisStage}</span>
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-400" />
+                {analysisStage}
+              </span>
               <span className="text-sky-400 font-bold">{analysisProgress}%</span>
             </div>
-            
-            {/* Custom high fidelity progress bar */}
+            {/* Progress bar */}
             <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden p-[1px]">
               <div
                 style={{ width: `${analysisProgress}%` }}
-                className="h-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-400 rounded-full transition-all duration-100 glow-cyan"
+                className="h-full bg-gradient-to-r from-sky-400 via-blue-500 to-sky-400 rounded-full transition-all duration-150 glow-cyan"
               />
             </div>
-            
-            <p className="text-[10px] text-slate-500 italic animate-pulse">Running scoring models in pipeline...</p>
+            <p className="text-[10px] text-slate-500 italic animate-pulse">
+              {candidateFile instanceof File ? 'Awaiting response from POST /rank…' : 'Running scoring models in pipeline…'}
+            </p>
           </div>
+
         ) : (
+          /* ── Success state ───────────────────────────────────────── */
           <div className="text-center space-y-4">
             <div className="flex items-center justify-center gap-2.5">
               <span className="p-1 rounded-full bg-emerald-500/10 border border-emerald-400/20 text-emerald-400">
                 <Check className="h-4 w-4" />
               </span>
               <span className="text-sm font-semibold text-emerald-400">Candidate Ranking Generated Successfully!</span>
+              {isRealAPIData && (
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-500/10 border border-sky-400/25 text-sky-400 rounded-full">
+                  Live API
+                </span>
+              )}
             </div>
-            <button
-              onClick={() => navigate('/rankings')}
-              className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700/80 hover:border-sky-500/30 rounded-xl text-xs font-semibold transition-all duration-200"
-            >
-              View Ranked Candidates
-            </button>
+            {isRealAPIData && candidatesList.length > 0 && (
+              <p className="text-xs text-slate-400">
+                Ranked <span className="font-semibold text-white">{candidatesList.length}</span> candidates from backend
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => navigate('/rankings')}
+                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700/80 hover:border-sky-500/30 rounded-xl text-xs font-semibold transition-all duration-200"
+              >
+                View Ranked Candidates
+              </button>
+              <button
+                onClick={() => { setIsComplete(false); setApiError(null); }}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                Run again
+              </button>
+            </div>
           </div>
         )}
       </div>
