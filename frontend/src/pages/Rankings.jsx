@@ -19,8 +19,10 @@ export default function Rankings({ candidatesList }) {
   const processedCandidates = useMemo(() => {
     return (candidatesList || [])
       .filter(candidate => {
-        const matchesSearch = candidate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              candidate.role.toLowerCase().includes(searchTerm.toLowerCase());
+        const nameVal = candidate.name || '';
+        const roleVal = candidate.role || '';
+        const matchesSearch = nameVal.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              roleVal.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesSkill = selectedSkill === 'All' || (candidate.skills || []).includes(selectedSkill);
         return matchesSearch && matchesSkill;
       })

@@ -1,6 +1,0 @@
-Role: Lead AI & Machine Learning Scientist
-Responsibilities:
-- Build and scale deep neural networks, transformer models, and reinforcement learning engines.
-- Collaborate on high-throughput candidate scoring interfaces.
-- Design low-latency inference pipelines.
-Requirements: Python, PyTorch, TensorFlow, Reinforcement Learning, Transformers.

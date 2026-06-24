@@ -4,7 +4,8 @@ import { UploadCloud, Check, Play, Award, Zap, Percent, Users2, AlertTriangle, L
 import axios from 'axios';
 import { candidates as defaultCandidates } from '../data/mockCandidates';
 
-const API_URL = 'http://127.0.0.1:8000/rank';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_URL = `${API_BASE}/rank`;
 
 // Map a single result item from the API response to our UI candidate model.
 // sub-scores (skillMatch, growth, etc.) are not returned by the backend yet;

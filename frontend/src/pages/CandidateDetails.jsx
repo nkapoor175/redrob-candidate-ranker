@@ -73,7 +73,7 @@ export default function CandidateDetails({ candidatesList }) {
           >
             {(candidatesList || []).map((c) => (
               <option key={c.id} value={c.id}>
-                Rank {c.rank}: {c.name} ({c.finalScore}%)
+                Rank {c.rank}: {c.name || 'Candidate'} ({c.finalScore}%)
               </option>
             ))}
           </select>
@@ -93,18 +93,18 @@ export default function CandidateDetails({ candidatesList }) {
             <div className="flex flex-col items-center text-center space-y-4 pt-2">
               {/* Avatar circle */}
               <div className="h-20 w-20 rounded-full bg-slate-800 border border-slate-700/60 flex items-center justify-center text-3xl font-bold text-sky-400">
-                {activeCandidate.name.split(' ').map(n => n[0]).join('')}
+                {(activeCandidate.name || 'Candidate').split(' ').map(n => n[0]).join('')}
               </div>
 
               {/* Text metadata */}
               <div>
                 <h3 className="text-lg font-bold text-white flex items-center justify-center gap-1.5">
-                  {activeCandidate.name}
+                  {activeCandidate.name || 'Candidate'}
                 </h3>
-                <p className="text-xs text-slate-400 font-medium mt-1">{activeCandidate.role}</p>
+                <p className="text-xs text-slate-400 font-medium mt-1">{activeCandidate.role || 'Candidate'}</p>
                 <div className="flex justify-center gap-4 mt-3 text-[11px] text-slate-500 font-semibold">
                   <span className="px-2 py-0.5 bg-slate-800 border border-slate-800 rounded-md">
-                    {activeCandidate.experienceYears} Years Exp
+                    {activeCandidate.experienceYears !== null && activeCandidate.experienceYears !== undefined ? `${activeCandidate.experienceYears} Years Exp` : 'Exp N/A'}
                   </span>
                   <span className="px-2 py-0.5 bg-slate-800 border border-slate-800 rounded-md">
                     Rank #{activeCandidate.rank}
@@ -129,22 +129,24 @@ export default function CandidateDetails({ candidatesList }) {
           </div>
 
           {/* Skills Tag Section */}
-          <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-6">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Code className="h-4 w-4 text-sky-400" />
-              Extracted Skills
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {activeCandidate.skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="px-2.5 py-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-[11px] font-semibold text-slate-300 hover:text-sky-400 hover:border-sky-500/20 transition-all duration-200"
-                >
-                  {skill}
-                </span>
-              ))}
+          {activeCandidate.skills?.length > 0 && (
+            <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-6">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Code className="h-4 w-4 text-sky-400" />
+                Extracted Skills
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {(activeCandidate.skills || []).map((skill) => (
+                  <span
+                    key={skill}
+                    className="px-2.5 py-1 rounded-xl bg-slate-900/60 border border-slate-800/80 text-[11px] font-semibold text-slate-300 hover:text-sky-400 hover:border-sky-500/20 transition-all duration-200"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Right Column: Breakdown Scores, Reasoning, Projects */}
@@ -174,7 +176,7 @@ export default function CandidateDetails({ candidatesList }) {
               Detailed Criteria Breakdown
             </h4>
             
-            {Object.values(activeCandidate.scores).every(v => v === null) ? (
+            {!activeCandidate.scores || Object.values(activeCandidate.scores).every(v => v === null) ? (
               <div className="col-span-2 flex items-center gap-2 p-3 rounded-xl bg-slate-900/40 border border-slate-800">
                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                   Sub-scores not available — backend returns overall score only.
@@ -204,29 +206,31 @@ export default function CandidateDetails({ candidatesList }) {
 
 
           {/* Candidate Projects */}
-          <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-6">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-sky-400" />
-              Key Project Portfolio
-            </h4>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {activeCandidate.projects.map((proj, idx) => (
-                <div
-                  key={idx}
-                  className="bg-slate-900/30 hover:bg-slate-900/60 border border-slate-800/80 hover:border-slate-800 rounded-xl p-4.5 transition-all duration-200"
-                >
-                  <h5 className="font-semibold text-slate-200 text-xs mb-2 flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-400"></span>
-                    {proj.title}
-                  </h5>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    {proj.description}
-                  </p>
-                </div>
-              ))}
+          {activeCandidate.projects?.length > 0 && (
+            <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-6">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-sky-400" />
+                Key Project Portfolio
+              </h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {(activeCandidate.projects || []).map((proj, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-slate-900/30 hover:bg-slate-900/60 border border-slate-800/80 hover:border-slate-800 rounded-xl p-4.5 transition-all duration-200"
+                  >
+                    <h5 className="font-semibold text-slate-200 text-xs mb-2 flex items-center gap-2">
+                      <span className="h-1.5 w-1.5 rounded-full bg-sky-400"></span>
+                      {proj.title}
+                    </h5>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {proj.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
