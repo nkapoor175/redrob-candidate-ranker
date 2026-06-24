@@ -80,10 +80,14 @@ def _get_st_model():
         return _st_model
     try:
         from sentence_transformers import SentenceTransformer
-        # TODO(Parthvi): Coordinate to pre-download weights so we can use local_files_only=True
-        # This prevents the model from attempting network fetches during offline Stage-3.
-        _st_model = SentenceTransformer("all-MiniLM-L6-v2")
-        logger.info("Loaded sentence-transformers model all-MiniLM-L6-v2")
+        from pathlib import Path
+        local_model_path = Path(__file__).resolve().parent.parent.parent / "data" / "models" / "all-MiniLM-L6-v2"
+        if local_model_path.exists():
+            _st_model = SentenceTransformer(str(local_model_path), local_files_only=True)
+            logger.info(f"Loaded sentence-transformers model from local path: {local_model_path}")
+        else:
+            _st_model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+            logger.info("Loaded sentence-transformers model all-MiniLM-L6-v2 from cache")
     except Exception as exc:                     # noqa: BLE001
         logger.warning("sentence-transformers unavailable (%s); "
                        "semantic scoring disabled.", exc)
