@@ -67,13 +67,17 @@ def main():
     print("Loading SentenceTransformer('all-MiniLM-L6-v2')...")
     t0 = time.time()
     from sentence_transformers import SentenceTransformer
-    # We load without local_files_only=True so it can download/cache the model initially
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    print(f"Model loaded in {time.time() - t0:.2f}s")
-
     local_model_path = Path(__file__).resolve().parent / "data" / "models" / "all-MiniLM-L6-v2"
-    print(f"Saving model weights locally to {local_model_path}...")
-    model.save(str(local_model_path))
+    
+    if local_model_path.exists():
+        print(f"Loading local model weights from {local_model_path}...")
+        model = SentenceTransformer(str(local_model_path), local_files_only=True)
+    else:
+        print("Loading SentenceTransformer('all-MiniLM-L6-v2') from Hugging Face...")
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+        print(f"Saving model weights locally to {local_model_path}...")
+        model.save(str(local_model_path))
+    print(f"Model loaded in {time.time() - t0:.2f}s")
 
     print(f"Encoding {num_candidates} texts (batch_size={args.batch_size})...")
     t0 = time.time()

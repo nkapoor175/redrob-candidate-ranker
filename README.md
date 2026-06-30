@@ -51,6 +51,23 @@ python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activa
 pip install -r requirements.txt
 ```
 
+## Precomputing Embeddings (Offline Setup)
+
+To support offline ranking and avoid network queries at runtime, candidate embeddings must be precomputed. This one-time step downloads the SentenceTransformer model weights, saves them locally, and generates the embedding cache.
+
+1. Ensure the raw candidates file is at `data/candidates.jsonl`.
+2. Run the offline precomputation script:
+   ```bash
+   python precompute_embeddings.py --candidates data/candidates.jsonl
+   ```
+
+This script will:
+- Download the `all-MiniLM-L6-v2` SentenceTransformer model (if not already cached locally).
+- Save the model weights to `data/models/all-MiniLM-L6-v2/` so they can be loaded later with `local_files_only=True` without internet access.
+- Batch-encode candidates in `data/candidates.jsonl`, quantize the embeddings to `int8`, and write them to `data/candidate_embeddings.npz` (which the candidate parser reads).
+
+Both `data/models/` and `data/candidate_embeddings.npz` are added to `.gitignore` so they won't bloat the repository.
+
 ## Run the API server
 
 ```bash
@@ -62,7 +79,7 @@ The frontend dashboard calls these endpoints.
 
 ## Produce a submission CSV (Stage-3 reproducible command)
 
-Put the dataset in `data/` (or point `--candidates` anywhere), then:
+Once the embeddings have been precomputed, run:
 
 ```bash
 python rank.py --candidates ./data/candidates.jsonl --out ./outputs/submission.csv
