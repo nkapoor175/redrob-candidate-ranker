@@ -1,117 +1,123 @@
-# India Runs Hackathon — AI-Powered Candidate Ranking System
+# Redrob Candidate Ranker — AI-Powered Candidate Ranking System
 
-Team project for the **Redrob Intelligent Candidate Discovery & Ranking Challenge**.
-Given a Job Description and a pool of 100,000 candidates, the system ranks the
-top-100 best-fit candidates with explainable reasoning.
+**Team Catalyst** · Redrob Intelligent Candidate Discovery & Ranking Challenge
 
-## Team
+Given a job description and a pool of 100,000 candidates, this system ranks the
+top-100 best-fit candidates the way a recruiter would — using skills, experience,
+career growth, and behavioral signals rather than keyword matching — and returns
+an explainable, spec-compliant shortlist.
 
-| Member | Role | Owns |
-|--------|------|------|
-| Parthvi | AI & Candidate Understanding | `app/modules/candidate_parser.py` (parsing, features, embeddings) |
-| Jash | Job Understanding & Ranking | `app/modules/jd_parser.py`, `scoring.py`, `reranker.py` |
-| **Navika** | **Backend & Integration** | **`app/main.py`, `app/pipeline.py`, `app/schemas.py`, `rank.py`, tests** |
-| Kaarthik | Frontend, Presentation & Docs | dashboard (consumes this API), PPT, demo video |
+- **Live demo (sandbox):** https://huggingface.co/spaces/navikakapoor/redrob-candidate-ranker
+- **Ranking performance:** 100,000 candidates ranked in ~90 seconds, offline, CPU-only.
 
-## What this backend does (Navika's part)
+## Approach
 
-It is the glue layer. It defines the shared data contracts (`schemas.py`), wires
-all four modules into one pipeline (`pipeline.py`), exposes them over a FastAPI
-service (`main.py`), and produces the spec-compliant submission CSV (`rank.py`).
-The teammates' modules currently contain working **baseline stubs** so the whole
-thing runs today; each module keeps a fixed signature so Parthvi and Jash can
-drop in their real implementations without breaking integration.
+A hybrid, explainable ranker:
+
+- **JD understanding** — offline parsing (regex + a skills taxonomy + fuzzy
+  matching) extracts required/preferred skills, an experience band, and role type.
+- **Candidate understanding** — each profile is parsed into structured features;
+  semantic embeddings (`sentence-transformers/all-MiniLM-L6-v2`) are pre-computed
+  offline and looked up at rank time.
+- **Hybrid scoring** — four signals combined as a weighted blend:
+  skill match (0.40), experience relevance (0.25), growth index (0.20),
+  behavioral score (0.15), then gated by a **title-fit** check so keyword-stuffed,
+  off-target profiles cannot rank at the top. Semantic cosine similarity is blended
+  in when embeddings are present.
+- **Explainability** — every candidate ships with a fact-grounded reason generated
+  from its own computed scores (no hallucination, no LLM calls in the ranking path).
 
 ## Project structure
 
 ```
-India-Runs-Hackathon/
+redrob-candidate-ranker/
 ├── app/
-│   ├── main.py            # FastAPI app + endpoints      (Navika)
-│   ├── pipeline.py        # integration layer + pipeline  (Navika)
-│   ├── schemas.py         # shared data formats           (Navika)
+│   ├── main.py            # FastAPI service (/rank, /rank/csv, /health)
+│   ├── pipeline.py        # integration layer + data pipeline
+│   ├── schemas.py         # shared data contracts
 │   └── modules/
-│       ├── jd_parser.py        # JD -> ParsedJD           (Jash)
-│       ├── candidate_parser.py # record -> features       (Parthvi)
-│       ├── scoring.py          # hybrid scoring engine     (Jash)
-│       └── reranker.py         # re-rank + reasoning       (Jash)
-├── rank.py                # CLI: produces submission CSV (Stage-3 command)
-├── tests/test_submission_format.py  # local format validator
-├── data/                  # put candidates.jsonl(.gz) + job_description.md here
-├── outputs/               # submission.csv lands here
+│       ├── jd_parser.py         # JD text  -> ParsedJD
+│       ├── candidate_parser.py  # record   -> CandidateFeatures (+ embedding lookup)
+│       ├── scoring.py           # hybrid scoring engine
+│       └── reranker.py          # deterministic re-rank + explanation generation
+├── precompute_embeddings.py     # offline, one-time embedding generation
+├── rank.py                      # single-command CSV producer (Stage-3)
+├── tests/test_submission_format.py  # local submission validator
 ├── requirements.txt
-├── submission_metadata.yaml
-└── API_DOCS.md
+└── submission_metadata.yaml
 ```
 
-## Setup
+## Reproduce the submission CSV
+
+Recommended: Python 3.11 or 3.12.
 
 ```bash
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
+python -m venv venv && venv\Scripts\activate      # Windows (Linux/Mac: source venv/bin/activate)
 pip install -r requirements.txt
 ```
 
-## Precomputing Embeddings (Offline Setup)
-
-To support offline ranking and avoid network queries at runtime, candidate embeddings must be precomputed. This one-time step downloads the SentenceTransformer model weights, saves them locally, and generates the embedding cache.
-
-1. Ensure the raw candidates file is at `data/candidates.jsonl`.
-2. Run the offline precomputation script:
-   ```bash
-   python precompute_embeddings.py --candidates data/candidates.jsonl
-   ```
-
-This script will:
-- Download the `all-MiniLM-L6-v2` SentenceTransformer model (if not already cached locally).
-- Save the model weights to `data/models/all-MiniLM-L6-v2/` so they can be loaded later with `local_files_only=True` without internet access.
-- Batch-encode candidates in `data/candidates.jsonl`, quantize the embeddings to `int8`, and write them to `data/candidate_embeddings.npz` (which the candidate parser reads).
-
-Both `data/models/` and `data/candidate_embeddings.npz` are added to `.gitignore` so they won't bloat the repository.
-
-## Run the API server
+**Step 1 — one-time offline pre-computation** (place the dataset at `data/candidates.jsonl` first):
 
 ```bash
-uvicorn app.main:app --reload
+python precompute_embeddings.py --candidates data/candidates.jsonl
 ```
 
-Open **http://127.0.0.1:8000/docs** for interactive (Swagger) API docs.
-The frontend dashboard calls these endpoints.
+This downloads the `all-MiniLM-L6-v2` model, saves the weights to
+`data/models/` (so they load later with `local_files_only=True`, no internet),
+batch-encodes candidates, quantizes to int8, and writes
+`data/candidate_embeddings.npz`. Pre-computation may exceed 5 minutes — that is
+allowed; only the ranking step is time-limited.
 
-## Produce a submission CSV (Stage-3 reproducible command)
-
-Once the embeddings have been precomputed, run:
+**Step 2 — produce the ranking (the single Stage-3 command):**
 
 ```bash
 python rank.py --candidates ./data/candidates.jsonl --out ./outputs/submission.csv
 ```
 
-This runs **offline, CPU-only** and stays well inside the 5-minute / 16 GB budget
-required by `submission_spec.md` Section 3. No hosted LLM calls happen during
-ranking.
+Runs **offline, CPU-only**, and completes the ranking of 100K candidates in
+~90 seconds — well within the 5-minute / 16 GB budget (submission_spec Section 3).
+No hosted LLM calls occur during ranking.
 
-## Validate before submitting
+**Step 3 — validate before submitting:**
 
 ```bash
 python tests/test_submission_format.py outputs/submission.csv data/candidates.jsonl
 ```
 
-Catches every common rejection (wrong row count, ranks not 1–100, duplicate IDs,
-non-decreasing scores, IDs missing from the dataset) before you upload.
+Checks row count, ranks 1–100, unique IDs, non-increasing scores, and that every
+ID exists in the dataset.
 
-## How the modules connect
+## Run the API / dashboard backend
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Interactive API docs at `http://127.0.0.1:8000/docs`. The recruiter dashboard
+(separate `frontend/` app) calls `POST /rank`.
+
+## Pipeline
 
 ```
-JD text ───────────────► jd_parser.parse_jd ─────────► ParsedJD
-candidates.jsonl ──► candidate_parser.parse_candidate ─► CandidateFeatures
-(ParsedJD + features) ─► scoring.score_candidate ──────► ScoredCandidate
+JD text ─────────────► jd_parser.parse_jd ─────────► ParsedJD
+candidates.jsonl ──► candidate_parser.parse_candidate ─► CandidateFeatures (+ embedding)
+(ParsedJD + features) ─► scoring.score_candidate ────► ScoredCandidate
 top-K shortlist ──► reranker.rerank + build_reasoning ─► RankedCandidate[]
-RankedCandidate[] ─► pipeline.write_submission_csv ────► submission.csv
+RankedCandidate[] ─► pipeline.write_submission_csv ──► submission.csv
 ```
 
-## Notes for teammates
+## Notes on artifacts
 
-- Keep the function signatures in `app/modules/*` unchanged — the integration
-  layer depends on them. Replace the bodies, not the interfaces.
-- The ranking step (`rank.py`) must stay offline. If you want LLM-quality
-  reasoning, generate it as a separate pre-compute step, not inside `rank.py`.
-- A real dataset isn't committed; drop `candidates.jsonl(.gz)` into `data/`.
+The 100K `candidates.jsonl`, generated `candidate_embeddings.npz`, and downloaded
+model weights are git-ignored; `precompute_embeddings.py` regenerates the
+embeddings for any dataset. The model is fetched once and cached locally for
+fully offline ranking.
+
+## Team
+
+| Member | Role |
+|--------|------|
+| Parthvi Mishra | Candidate Understanding & Embeddings |
+| Jash Trehan | Job Understanding & Ranking |
+| Navika Kapoor | Backend & Integration |
+| Kaarthik Reddy | Frontend, Presentation & Documentation |
