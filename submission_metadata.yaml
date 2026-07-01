@@ -1,26 +1,31 @@
-# Mirrors the portal metadata (submission_spec.md Section 10). Fill before submitting.
-team_name: ""
-primary_contact_name: ""
-primary_contact_email: ""
-primary_contact_phone: ""
-github_repository_url: "https://github.com/USERNAME/REPO"
-sandbox_demo_link: ""          # HuggingFace Spaces / Streamlit / Replit / Colab / Docker / Binder
+# Mirrors the portal metadata (submission_spec Section 10). Fill remaining [FILL] fields before submitting.
+team_name: "Catalyst"
+primary_contact_name: "Parthvi Mishra"
+primary_contact_email: "parthvimishra17@gmail.com"
+primary_contact_phone: "6304371676"
+github_repository_url: "https://github.com/nkapoor175/redrob-candidate-ranker"
+sandbox_demo_link: "https://huggingface.co/spaces/navikakapoor/redrob-candidate-ranker"
 ai_tools_declared:             # Claude / ChatGPT / Copilot / Cursor / Gemini / Other / None
   - Claude
-compute_environment_summary: "" # e.g. "Windows 11, 16GB RAM, Python 3.11"
+compute_environment_summary: "Windows 11, 16GB RAM, Python 3.11 (dev/run); ranking step 100K in ~90s, CPU-only"
 team_members:
-  - name: "Parthvi"
-    email: ""
-  - name: "Jash"
-    email: ""
-  - name: "Navika"
+  - name: "Parthvi Mishra"      # Candidate Understanding & Embeddings
+    email: "parthvimishra17@gmail.com"
+  - name: "Jash Trehan"         # Job Understanding & Ranking
+    email: "trehanjash@gmail.com"
+  - name: "Navika Kapoor"       # Backend & Integration
     email: "navikakapoorgrk@gmail.com"
-  - name: "Kaarthik"
-    email: ""
+  - name: "Kaarthik Reddy"      # Frontend, Presentation & Docs
+    email: "gkaarthikreddy@gmail.com"
 methodology_summary: >
-  Hybrid ranker over precomputed candidate features. JD is parsed into required/
-  preferred skills and an experience band. Each candidate is scored on skill match
-  (gated by title fit so keyword-stuffed non-engineers don't rank), experience
-  relevance, and a behavioral availability modifier (recruiter response rate,
-  recency, open-to-work). Top-K shortlist is re-ranked deterministically and given
-  fact-grounded reasoning. Runs offline, CPU-only, well under the 5-min budget.
+  Hybrid, explainable candidate ranking over 100,000 profiles. The JD is parsed
+  offline (regex + a skills taxonomy + rapidfuzz fuzzy matching) into required/
+  preferred skills, an experience band, and role type. Each candidate is scored on
+  four signals — skill match (fuzzy + semantic), experience relevance, growth index,
+  and behavioral signals — combined as a weighted blend, then gated by a title-fit
+  check so keyword-stuffed non-engineering profiles cannot rank at the top.
+  Semantic similarity uses sentence-transformers all-MiniLM-L6-v2 embeddings,
+  pre-computed offline once and looked up at rank time. The shortlist is re-ranked
+  deterministically and each candidate is given a fact-grounded explanation.
+  The ranking step runs offline, CPU-only, ranking 100K candidates in ~90 seconds
+  (well under the 5-minute limit). No hosted LLM calls in the ranking path.
